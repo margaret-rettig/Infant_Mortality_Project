@@ -1,0 +1,137 @@
+---
+title: "Final Project"
+author: "Margaret Rettig"
+date: "4/13/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load Necessary Libraries (will update as needed)
+```{r}
+library(readr)
+library(XML)
+```
+
+For this project, the infant mortality data is stored in an XML file and the longitude and latitude data is stored in a csv file. The population data is also stored in a csv file.
+
+This program reads these files, and then creates a graphical mapping of the data from this file. This graphical representation uses different sized circle to represent the size of the population and colors the circles based on the of infant mortality per 1000 live births. 
+
+Read the Longitude/Latitude Data
+```{r}
+latlonDF <- read_csv("long_lat_data.csv") #reads the data file of country names and locations
+print(latlonDF) #prints the data file to ensure it makes sense
+population <- read_csv("population.csv") #read population data
+```
+
+Locate the statistics in the XML file
+```{r}
+library(XML) #adds the package needed to read the XML file
+factbookDoc = xmlParse("factbook.xml") #reads the information out of the XML file into R as a variable (external pointer)
+factbookRoot = xmlRoot(factbookDoc) #finds the top level data labels in the XML file 
+xmlName(factbookRoot) #
+xmlSize(factbookRoot) #
+table(names(factbookRoot)) #prints the labels of the top level data 
+sapply(factbookRoot["category"], function(node) table(names(node))) #returns a vector of the category values  
+sapply(factbookRoot["category"], xmlAttrs) #returns attributes of the XML file
+categoryNodes = factbookRoot["category"] #returns the categories of the Nodes 
+w = sapply(categoryNodes, xmlGetAttr, "name")=="People and Society" #finds the category titled people and society
+Ids = sapply(categoryNodes[[which(w)]] ["field"], xmlGetAttr, "id") #gets the numerical id/index of the node with the infant mortality data
+f2091Index = which(Ids == "f2091") #sorts the nodes by ids
+f2091Index
+rankNodes = categoryNodes[[which(w)]]["field"][[f2091Index]]["rank"] #finds the node category of the node with f2091 Index
+xmlSize(rankNodes) #prints rankNodes
+```
+
+Read the previously located Statistics out of the XML file
+```{r}
+infMortNum = sapply(rankNodes, xmlGetAttr, "number") #reads the infant mortality per 1000 live births into the variable infMortNum
+infMortCtry = sapply(rankNodes, xmlGetAttr, "country") #reads the country corresponding to the infant mortaltiy data into the variable infMortCtry
+head(infMortNum) #prints the first 6 values fo infMortNum
+head(infMortCtry) #prints the first 6 values for infMortCtry
+```
+Double Check that we have the correct node/statistics
+This section prints out the qualities of the node that the staistics were read from
+```{r}
+x = c(x= "file:///Users/rettigm/Downloads/factbook.xml")
+field2091 = getNodeSet(factbookDoc, "//field[@id = 'f2091']", namespaces = xmlNamespaceDefinitions(factbookDoc, simplify = TRUE))
+xmlAttrs(field2091[[1]])
+```
+Examine Attribute Values of the 1st Node
+```{r}
+rankNodes = getNodeSet(factbookDoc, "//field[@id='f2091']/rank")
+xmlAttrs(rankNodes[[1]])
+```
+Extract attributes and values from these nodes
+```{r}
+infNum = as.numeric(sapply(rankNodes, xmlGetAttr, "number"))
+infCtry = sapply(rankNodes, xmlGetAttr, "country")
+```
+
+Write this information into a data frame
+```{r}
+infMortDF = data.frame(infMort = infNum, ctry = infCtry, stringsAsFactors = FALSE)
+rankNodes = getNodeSet(factbookRoot, "//field[@id='f2119']/rank")
+popNum = as.numeric(sapply(rankNodes, xmlGetAttr, "number"))
+popCtry = sapply(rankNodes, xmlGetAttr, "country")
+popDF = data.frame(pop = popNum, ctry = popCtry, stringsAsFactors = FALSE)
+```
+
+Read in CSV Files for infant mortality rate to make sure the countries are correct
+```{r}
+library(readr)
+country_comparison_infant_mortality_rate <- read_csv("country_comparison_infant_mortality_rate.csv")
+
+country_codes <- read_csv("country-codes.csv")
+
+```
+Examine data sets
+```{r}
+head(latlonDF)
+head(popDF)
+head(infMortDF)
+```
+
+Merge the data frames into 1
+```{r}
+IMPop = merge(infMortDF, popDF, by = "ctry", all = FALSE) #merge the infant mortality and population data frames
+dim(IMPop)
+
+latlonDF$code = tolower(as.character(latlonDF$`Alpha-2 code`)) #convert codes to lowercase to be able to match them
+
+newlatlonDF = merge(country_comparison_infant_mortality_rate, latlonDF, by.x = "country", by.y = "Country") #merge infant mortality data and latitude longitude data
+allCtryData = merge(newlatlonDF, population, by.x = "country", by.y = "Name")
+
+
+```
+Access and select a color pallet, and summarize the data, then create a histogram of the data
+```{r}
+library(RColorBrewer)
+display.brewer.all() 
+cols = brewer.pal(9, "YlOrRd")[c(1, 2, 4, 6, 7)]
+
+newInfMort = cut(allCtryData$amount, breaks = 5)
+summary(newInfMort)
+
+newInfMort2 = cut(allCtryData$amount, breaks = c(0, 37, 50, 65, 80, 150))
+summary(newInfMort2)
+
+hist(allCtryData$amount, breaks = 20, main = "", xlab = "Infant Mortality per 1000 Live Births") 
+
+quantile(allCtryData$amount, probs = seq(0, 1, by = 0.2))
+
+InfMortDiscrete = cut(allCtryData$amount, breaks = c(0, 10, 25, 50, 75, 150))
+
+popDiscrete = cut(allCtryData$Value, breaks = c(0,10,25,50,75,150))
+```
+```{r}
+library(maps)
+world = map(database = "world", fill = TRUE, col="light grey") #create a world map
+rads = pmax(sqrt(allCtryData$Value)/4000, 1) #create a variable to size and scale the circles
+symbols(allCtryData$`Longitude (average)`, allCtryData$`Latitude (average)`, add = TRUE, circles= rads, inches = FALSE, fg = cols[InfMortDiscrete], bg = cols[InfMortDiscrete])
+#use the symbols() command to add the circles to the map
+legend(x = -150, y = 0, title = "Infant Mortality",legend = levels(InfMortDiscrete), fill = cols, cex = 0.8) #add a legend to the map for easier understanding 
+```
+This map shows the infant mortality data by country. For each of the countries, the size of the circle represents the size of the country, and the color of the circle corresponds to the number of infant deaths per 1000 live births. The darker red colors correspond to higher infant mortality, while the lighter yellow colors correspond to lower infant mortality.
