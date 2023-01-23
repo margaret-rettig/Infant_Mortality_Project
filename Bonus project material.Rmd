@@ -1,0 +1,104 @@
+---
+title: "Extra Final Stuff"
+author: "Margaret Rettig"
+date: "4/28/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+cia_to_iso = c()
+print(country_codes[4])
+print(country_codes[10])
+for(r in 1:250){
+  cia_code = country_codes[[4]][r]
+  iso_code = country_codes[[10]][r]
+  cia_to_iso[cia_code] = iso_code
+}
+print(cia_to_iso)
+```
+
+
+```{r}
+library(RKML)
+doc = kmlPoints(allCtryData)
+saveXML(doc, "countryPlain.kml")
+
+```
+
+
+```{r}
+popScales = as.character(1+ c(0.25, .75, 1.5, 3, 7))
+icon = rep(sprintf("yor%dball.png", seq(along = levels(InfMortDiscrete))), each = length(levels(popDiscrete)))
+scale = rep(popScales, length(levels(InfMortDiscrete)))
+ballStyles = mapply(function(scale, icon)
+  list(IconStyle = list(scale = scale, Icon = c(href = icon))), scale, icon, SIMPLIFY = FALSE)
+
+g = expand.grid(seq(along = levels(InfMortDiscrete)), seq(along = levels(popDiscrete)))
+
+names(ballStyles) = sprintf("ball_%d-%d", g[,2], g[,1])
+```
+
+```{r}
+ctryStyle = sprintf("ball_%d-%d", InfMortDiscrete, popDiscrete)
+```
+
+```{r}
+kmlPoints(allCtryData, docStyles = ballStyles, style = ctryStyle)
+```
+
+```{r}
+ptDescriptions = sprintf(paste("<table><tr><td>Country:</td><td>%s</td></tr>","<tr><td>Infant Mortality:</td>","<td>%s per 1,000 live births</td></tr>", "<tr><td>Population:</td><td>%s</td></tr></table>"),  allCtryData$name, allCtryData$infMort, allCtryData$pop)
+```
+
+```{r}
+kmlPoints(allCtryData, docStyles = ballStyles, style = ctryStyle)
+```
+
+```{r}
+doc = kmlPoints(allCtryData, docName = docName, docDescription = docDescription, docStyles = ballStyles, folderName = folderName, style = ctryStyle, description = ptDescriptions, ids = allCtryData$ctry, .names = allCtryData$name)
+```
+
+```{r}
+kmlLegend(x = 20, y = 20, title = "Infant Mortality", legend = levels(InfMortDiscrete), fill = cols, text.col = "white", dims = c(100, 108), parent = doc)
+```
+```{r}
+docName = "Infant Mortality"
+docDescription = "2012 CIA Factbook"
+folderName = "Countries"
+```
+
+```{r}
+kmlLegend(x = 20, y = 20, title = "Infant Mortality", legend = levels(InfMortDiscrete), fill = cols, text.col = "white", dims = c(100, 108),
+parent = doc)
+```
+
+Save final document for viewing with Google Earth
+```{r}
+saveXML(doc, "ctryFancy.kml")
+```
+
+
